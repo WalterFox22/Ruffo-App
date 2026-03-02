@@ -196,12 +196,31 @@ export default function ClientsPage() {
     await loadClients();
   }
 
+  function resetClientForm() {
+    setFullName("");
+    setPhone("");
+    setEmail("");
+    setNotes("");
+    setClientErrors({});
+  }
+
+  function closeClientModal() {
+    setOpenModal(false);
+    resetClientForm();
+  }
+
   function resetPetForm() {
     setPetName("");
     setPetSpecies("");
     setPetBreed("");
     setPetBehaviorNotes("");
     setPetErrors({});
+  }
+
+  function closePetModal() {
+    setOpenPetModal(false);
+    setSelectedClient(null);
+    resetPetForm();
   }
 
   function openPetForm(client: ClientRow) {
@@ -269,7 +288,14 @@ export default function ClientsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Clientes Registrados</h1>
 
-        <Button onClick={() => setOpenModal(true)}>Añadir Cliente</Button>
+        <Button
+          onClick={() => {
+            resetClientForm();
+            setOpenModal(true);
+          }}
+        >
+          Añadir Cliente
+        </Button>
       </div>
 
       <div className="flex w-full max-w-md items-center gap-2">
@@ -344,7 +370,7 @@ export default function ClientsPage() {
               <h2 className="text-lg font-semibold">Añadir Cliente</h2>
               <button
                 type="button"
-                onClick={() => setOpenModal(false)}
+                onClick={closeClientModal}
                 className="rounded px-2 py-1 text-sm text-gray-600 hover:bg-gray-100"
               >
                 Cerrar
@@ -409,7 +435,7 @@ export default function ClientsPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setOpenModal(false)}
+                  onClick={closeClientModal}
                   disabled={saving}
                 >
                   Cancelar
@@ -433,7 +459,7 @@ export default function ClientsPage() {
               </h2>
               <button
                 type="button"
-                onClick={() => setOpenPetModal(false)}
+                onClick={closePetModal}
                 className="rounded px-2 py-1 text-sm text-gray-600 hover:bg-gray-100"
               >
                 Cerrar
@@ -502,7 +528,7 @@ export default function ClientsPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setOpenPetModal(false)}
+                  onClick={closePetModal}
                   disabled={savingPet}
                 >
                   Cancelar
