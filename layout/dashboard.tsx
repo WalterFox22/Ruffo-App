@@ -9,7 +9,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
 
   const items = [
     { href: "/dashboard/clients", label: "Clientes" },
-    { href: "/dashboard/pets", label: "Mascotas" },
+    { href: "/dashboard/pets", label: "Detalles clientes y mascotas" },
   ];
 
   return (

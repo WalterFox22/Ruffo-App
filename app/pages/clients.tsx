@@ -21,6 +21,11 @@ type ClientRow = Client & {
   status: "Con mascotas" | "Sin mascotas";
 };
 
+type PetFormErrors ={
+  name?: string;
+  species?: string;
+};
+
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("es-EC", {
     year: "numeric",
@@ -44,6 +49,17 @@ export default function ClientsPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [openPetModal, setOpenPetModal] = useState(false);
+  const [savingPet, setSavingPet] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<{ id: string; full_name: string } | null>(null);
+
+  const [petName, setPetName] = useState("");
+  const [petSpecies, setPetSpecies] = useState("");
+  const [petBreed, setPetBreed] = useState("");
+  const [petBehaviorNotes, setPetBehaviorNotes] = useState("");
+  const [petErrors, setPetErrors] = useState<PetFormErrors>({});
+
 
   async function loadClients() {
     setLoading(true);
@@ -133,6 +149,63 @@ export default function ClientsPage() {
     await loadClients();
   }
 
+  function resetPetForm() {
+    setPetName("");
+    setPetSpecies("");
+    setPetBreed("");
+    setPetBehaviorNotes("");
+    setPetErrors({});
+  }
+
+  function openPetForm(client: ClientRow) {
+    setSelectedClient({ id: client.id, full_name: client.full_name });
+    resetPetForm();
+    setOpenPetModal(true);
+  }
+
+  function validatePetForm() {
+    const errors: PetFormErrors = {};
+
+    if (!petName.trim()) errors.name = "El nombre es obligatorio.";
+    if (!petSpecies.trim()) {
+      errors.species = "La especie es obligatoria.";
+    } else if (!["canino", "felino", "otro"].includes(petSpecies)) {
+      errors.species = "La especie debe ser: canino, felino u otro.";
+    }
+
+    setPetErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
+  async function handleCreatePet(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!selectedClient) return;
+    if (!validatePetForm()) return;
+
+    setSavingPet(true);
+
+    const { error } = await supabase.from("pets").insert({
+      client_id: selectedClient.id,
+      name: petName.trim(),
+      species: petSpecies,
+      breed: petBreed.trim() || null,
+      behavior_notes: petBehaviorNotes.trim() || null,
+    });
+
+    setSavingPet(false);
+
+    if (error) {
+      setPetErrors((prev) => ({ ...prev, name: error.message }));
+      return;
+    }
+
+    setOpenPetModal(false);
+    resetPetForm();
+    await loadClients();
+  }
+
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -191,12 +264,9 @@ export default function ClientsPage() {
                   <td className="px-4 py-3">{formatDate(row.created_at)}</td>
                   <td className="px-4 py-3">{row.status}</td>
                   <td className="px-4 py-3">
-                    <Link
-                      href={`/dashboard/clients/${row.id}/pets/new`}
-                      className="inline-block rounded-md border px-3 py-1.5 text-xs hover:bg-gray-50"
-                    >
+                    <Button variant="outline" size="sm" onClick={() => openPetForm(row)}>
                       Añadir mascota
-                    </Link>
+                    </Button>
                   </td>
                 </tr>
               ))
@@ -222,35 +292,16 @@ export default function ClientsPage() {
             <form onSubmit={handleCreateClient} className="space-y-3">
               <div>
                 <label className="mb-1 block text-sm">Nombre completo *</label>
-                <Input
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Ej: María Pérez"
-                  disabled={saving}
-                />
+                <Input value={fullName} onChange={(e) => setFullName(e.target.value)} disabled={saving} />
               </div>
-
               <div>
                 <label className="mb-1 block text-sm">Teléfono *</label>
-                <Input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Ej: 0999999999"
-                  disabled={saving}
-                />
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={saving} />
               </div>
-
               <div>
                 <label className="mb-1 block text-sm">Email</label>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Ej: cliente@mail.com"
-                  disabled={saving}
-                />
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={saving} />
               </div>
-
               <div>
                 <label className="mb-1 block text-sm">Notas</label>
                 <textarea
@@ -258,7 +309,6 @@ export default function ClientsPage() {
                   rows={3}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Notas del cliente..."
                   disabled={saving}
                 />
               </div>
@@ -269,6 +319,74 @@ export default function ClientsPage() {
                 </Button>
                 <Button type="submit" disabled={saving}>
                   {saving ? "Guardando..." : "Guardar cliente"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {openPetModal ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                Añadir mascota {selectedClient ? `a ${selectedClient.full_name}` : ""}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setOpenPetModal(false)}
+                className="rounded px-2 py-1 text-sm text-gray-600 hover:bg-gray-100"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePet} className="space-y-3">
+              <div>
+                <label className="mb-1 block text-sm">Nombre *</label>
+                <Input value={petName} onChange={(e) => setPetName(e.target.value)} disabled={savingPet} />
+                {petErrors.name ? <p className="mt-1 text-xs text-red-600">{petErrors.name}</p> : null}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm">Especie *</label>
+                <select
+                  value={petSpecies}
+                  onChange={(e) => setPetSpecies(e.target.value)}
+                  className="w-full rounded-md border p-2 text-sm"
+                  disabled={savingPet}
+                >
+                  <option value="">Seleccione una especie</option>
+                  <option value="canino">Canino</option>
+                  <option value="felino">Felino</option>
+                  <option value="otro">Otro</option>
+                </select>
+                {petErrors.species ? <p className="mt-1 text-xs text-red-600">{petErrors.species}</p> : null}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm">Raza (opcional)</label>
+                <Input value={petBreed} onChange={(e) => setPetBreed(e.target.value)} disabled={savingPet} />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm">Notas de comportamiento (opcional)</label>
+                <textarea
+                  className="w-full rounded-md border p-2 text-sm"
+                  rows={3}
+                  value={petBehaviorNotes}
+                  onChange={(e) => setPetBehaviorNotes(e.target.value)}
+                  disabled={savingPet}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setOpenPetModal(false)} disabled={savingPet}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={savingPet}>
+                  {savingPet ? "Guardando..." : "Guardar mascota"}
                 </Button>
               </div>
             </form>
