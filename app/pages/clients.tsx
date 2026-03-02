@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +20,21 @@ type ClientRow = Client & {
   status: "Con mascotas" | "Sin mascotas";
 };
 
-type PetFormErrors ={
+type ClientFormErrors = {
+  full_name?: string;
+  phone?: string;
+  email?: string;
+};
+
+type PetFormErrors = {
   name?: string;
   species?: string;
+  breed?: string;
 };
+
+const NAME_REGEX = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]+$/;
+const PHONE_REGEX = /^\d{7,15}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("es-EC", {
@@ -49,10 +59,14 @@ export default function ClientsPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
+  const [clientErrors, setClientErrors] = useState<ClientFormErrors>({});
 
   const [openPetModal, setOpenPetModal] = useState(false);
   const [savingPet, setSavingPet] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<{ id: string; full_name: string } | null>(null);
+  const [selectedClient, setSelectedClient] = useState<{
+    id: string;
+    full_name: string;
+  } | null>(null);
 
   const [petName, setPetName] = useState("");
   const [petSpecies, setPetSpecies] = useState("");
@@ -60,12 +74,14 @@ export default function ClientsPage() {
   const [petBehaviorNotes, setPetBehaviorNotes] = useState("");
   const [petErrors, setPetErrors] = useState<PetFormErrors>({});
 
-
   async function loadClients() {
     setLoading(true);
     setErrorMsg("");
 
-    const [{ data: clients, error: clientsError }, { data: pets, error: petsError }] = await Promise.all([
+    const [
+      { data: clients, error: clientsError },
+      { data: pets, error: petsError },
+    ] = await Promise.all([
       supabase
         .from("clients")
         .select("id, full_name, phone, email, notes, created_at")
@@ -74,16 +90,23 @@ export default function ClientsPage() {
     ]);
 
     if (clientsError || petsError) {
-      setErrorMsg(clientsError?.message || petsError?.message || "No se pudieron cargar los clientes.");
+      setErrorMsg(
+        clientsError?.message ||
+          petsError?.message ||
+          "No se pudieron cargar los clientes.",
+      );
       setRows([]);
       setLoading(false);
       return;
     }
 
-    const countByClient = (pets ?? []).reduce<Record<string, number>>((acc, pet: { client_id: string }) => {
-      acc[pet.client_id] = (acc[pet.client_id] ?? 0) + 1;
-      return acc;
-    }, {});
+    const countByClient = (pets ?? []).reduce<Record<string, number>>(
+      (acc, pet: { client_id: string }) => {
+        acc[pet.client_id] = (acc[pet.client_id] ?? 0) + 1;
+        return acc;
+      },
+      {},
+    );
 
     const mapped: ClientRow[] = (clients ?? []).map((c: Client) => {
       const petsCount = countByClient[c.id] ?? 0;
@@ -115,14 +138,37 @@ export default function ClientsPage() {
     });
   }, [rows, query]);
 
+  function validateClientForm() {
+    const errors: ClientFormErrors = {};
+    const cleanName = fullName.trim();
+    const cleanPhone = phone.trim();
+    const cleanEmail = email.trim();
+
+    if (!cleanName) {
+      errors.full_name = "El nombre completo es obligatorio.";
+    } else if (!NAME_REGEX.test(cleanName)) {
+      errors.full_name = "El nombre solo puede contener letras y espacios.";
+    }
+
+    if (!cleanPhone) {
+      errors.phone = "El teléfono es obligatorio.";
+    } else if (!PHONE_REGEX.test(cleanPhone)) {
+      errors.phone = "El teléfono debe tener solo números (7 a 15 dígitos).";
+    }
+
+    if (cleanEmail && !EMAIL_REGEX.test(cleanEmail)) {
+      errors.email = "El email no tiene un formato válido.";
+    }
+
+    setClientErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
   async function handleCreateClient(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErrorMsg("");
 
-    if (!fullName.trim() || !phone.trim()) {
-      setErrorMsg("Nombre completo y teléfono son obligatorios.");
-      return;
-    }
+    if (!validateClientForm()) return;
 
     setSaving(true);
 
@@ -146,6 +192,7 @@ export default function ClientsPage() {
     setEmail("");
     setNotes("");
 
+    setClientErrors({});
     await loadClients();
   }
 
@@ -166,11 +213,23 @@ export default function ClientsPage() {
   function validatePetForm() {
     const errors: PetFormErrors = {};
 
-    if (!petName.trim()) errors.name = "El nombre es obligatorio.";
+    const cleanPetName = petName.trim();
+    const cleanBreed = petBreed.trim();
+
+    if (!cleanPetName) {
+      errors.name = "El nombre es obligatorio.";
+    } else if (!NAME_REGEX.test(cleanPetName)) {
+      errors.name = "El nombre solo puede contener letras y espacios.";
+    }
+
     if (!petSpecies.trim()) {
       errors.species = "La especie es obligatoria.";
     } else if (!["canino", "felino", "otro"].includes(petSpecies)) {
       errors.species = "La especie debe ser: canino, felino u otro.";
+    }
+
+    if (cleanBreed && !NAME_REGEX.test(cleanBreed)) {
+      errors.breed = "La raza solo puede contener letras y espacios.";
     }
 
     setPetErrors(errors);
@@ -204,7 +263,6 @@ export default function ClientsPage() {
     resetPetForm();
     await loadClients();
   }
-
 
   return (
     <section className="space-y-4">
@@ -264,7 +322,11 @@ export default function ClientsPage() {
                   <td className="px-4 py-3">{formatDate(row.created_at)}</td>
                   <td className="px-4 py-3">{row.status}</td>
                   <td className="px-4 py-3">
-                    <Button variant="outline" size="sm" onClick={() => openPetForm(row)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openPetForm(row)}
+                    >
                       Añadir mascota
                     </Button>
                   </td>
@@ -292,15 +354,45 @@ export default function ClientsPage() {
             <form onSubmit={handleCreateClient} className="space-y-3">
               <div>
                 <label className="mb-1 block text-sm">Nombre completo *</label>
-                <Input value={fullName} onChange={(e) => setFullName(e.target.value)} disabled={saving} />
+                <Input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  disabled={saving}
+                />
+                {clientErrors.full_name ? (
+                  <p className="mt-1 text-xs text-red-600">
+                    {clientErrors.full_name}
+                  </p>
+                ) : null}
               </div>
               <div>
                 <label className="mb-1 block text-sm">Teléfono *</label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={saving} />
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                  inputMode="numeric"
+                  maxLength={15}
+                  disabled={saving}
+                />
+                {clientErrors.phone ? (
+                  <p className="mt-1 text-xs text-red-600">
+                    {clientErrors.phone}
+                  </p>
+                ) : null}
               </div>
               <div>
                 <label className="mb-1 block text-sm">Email</label>
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={saving} />
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={saving}
+                />
+                {clientErrors.email ? (
+                  <p className="mt-1 text-xs text-red-600">
+                    {clientErrors.email}
+                  </p>
+                ) : null}
               </div>
               <div>
                 <label className="mb-1 block text-sm">Notas</label>
@@ -314,7 +406,12 @@ export default function ClientsPage() {
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setOpenModal(false)} disabled={saving}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpenModal(false)}
+                  disabled={saving}
+                >
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={saving}>
@@ -331,7 +428,8 @@ export default function ClientsPage() {
           <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">
-                Añadir mascota {selectedClient ? `a ${selectedClient.full_name}` : ""}
+                Añadir mascota{" "}
+                {selectedClient ? `a ${selectedClient.full_name}` : ""}
               </h2>
               <button
                 type="button"
@@ -345,8 +443,14 @@ export default function ClientsPage() {
             <form onSubmit={handleCreatePet} className="space-y-3">
               <div>
                 <label className="mb-1 block text-sm">Nombre *</label>
-                <Input value={petName} onChange={(e) => setPetName(e.target.value)} disabled={savingPet} />
-                {petErrors.name ? <p className="mt-1 text-xs text-red-600">{petErrors.name}</p> : null}
+                <Input
+                  value={petName}
+                  onChange={(e) => setPetName(e.target.value)}
+                  disabled={savingPet}
+                />
+                {petErrors.name ? (
+                  <p className="mt-1 text-xs text-red-600">{petErrors.name}</p>
+                ) : null}
               </div>
 
               <div>
@@ -362,16 +466,29 @@ export default function ClientsPage() {
                   <option value="felino">Felino</option>
                   <option value="otro">Otro</option>
                 </select>
-                {petErrors.species ? <p className="mt-1 text-xs text-red-600">{petErrors.species}</p> : null}
+                {petErrors.species ? (
+                  <p className="mt-1 text-xs text-red-600">
+                    {petErrors.species}
+                  </p>
+                ) : null}
               </div>
 
               <div>
                 <label className="mb-1 block text-sm">Raza (opcional)</label>
-                <Input value={petBreed} onChange={(e) => setPetBreed(e.target.value)} disabled={savingPet} />
+                <Input
+                  value={petBreed}
+                  onChange={(e) => setPetBreed(e.target.value)}
+                  disabled={savingPet}
+                />
+                {petErrors.breed ? (
+                  <p className="mt-1 text-xs text-red-600">{petErrors.breed}</p>
+                ) : null}
               </div>
 
               <div>
-                <label className="mb-1 block text-sm">Notas de comportamiento (opcional)</label>
+                <label className="mb-1 block text-sm">
+                  Notas de comportamiento (opcional)
+                </label>
                 <textarea
                   className="w-full rounded-md border p-2 text-sm"
                   rows={3}
@@ -382,7 +499,12 @@ export default function ClientsPage() {
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setOpenPetModal(false)} disabled={savingPet}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpenPetModal(false)}
+                  disabled={savingPet}
+                >
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={savingPet}>

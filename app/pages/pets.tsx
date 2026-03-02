@@ -37,7 +37,10 @@ type PetFormErrors = {
   client_id?: string;
   name?: string;
   species?: string;
+  breed?: string;
 };
+
+const NAME_REGEX = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]+$/;
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("es-EC", {
@@ -181,13 +184,25 @@ export default function PetsPage() {
   function validatePetForm() {
     const errors: PetFormErrors = {};
 
+    const cleanName = petName.trim();
+    const cleanBreed = petBreed.trim();
+
     if (!petClientId) errors.client_id = "Debes seleccionar un cliente.";
-    if (!petName.trim()) errors.name = "El nombre es obligatorio.";
+
+    if (!cleanName) {
+      errors.name = "El nombre es obligatorio.";
+    } else if (!NAME_REGEX.test(cleanName)) {
+      errors.name = "El nombre solo puede contener letras y espacios.";
+    }
 
     if (!petSpecies.trim()) {
       errors.species = "La especie es obligatoria.";
     } else if (!["canino", "felino", "otro"].includes(petSpecies)) {
       errors.species = "La especie debe ser: canino, felino u otro.";
+    }
+
+    if (cleanBreed && !NAME_REGEX.test(cleanBreed)) {
+      errors.breed = "La raza solo puede contener letras y espacios.";
     }
 
     setPetErrors(errors);
@@ -418,6 +433,9 @@ export default function PetsPage() {
                   onChange={(e) => setPetBreed(e.target.value)}
                   disabled={savingPet}
                 />
+                {petErrors.breed ? (
+                  <p className="mt-1 text-xs text-red-600">{petErrors.breed}</p>
+                ) : null}
               </div>
 
               <div>
