@@ -241,7 +241,6 @@ export default function PetsPage() {
         <h1 className="text-2xl font-semibold">
           Detalle de clientes y mascotas
         </h1>
-        <Button onClick={() => openPetForm()}>Añadir nueva mascota</Button>
       </div>
 
       <div className="flex w-full max-w-md items-center gap-2">
